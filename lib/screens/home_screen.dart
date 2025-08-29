@@ -65,9 +65,9 @@ class HideoutListView extends StatelessWidget {
         children: [
           Text(
             '나의 비밀기지',
-            style: Theme.of(context).textTheme.headlineMedium,
+            style: Theme.of(context).textTheme.headlineSmall,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
             child: ListView.builder(
               itemCount: 3,
@@ -107,87 +107,102 @@ class WelcomeHomeView extends StatelessWidget {
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Padding(
-        padding: const EdgeInsets.all(20.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const SizedBox(height: 40),
-            // 메인 일러스트레이션
-            Container(
-              width: double.infinity,
-              height: 280,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.yellow.shade50,
-                    Colors.orange.shade50,
-                    Colors.pink.shade50,
+            const SizedBox(height: 10),
+            // 메인 이미지 - 모바일에 최적화된 크기
+            Center(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.shade200.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
                   ],
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.orange.shade100.withOpacity(0.2),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  // 배경 패턴
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: TreeHousePainter(),
-                    ),
-                  ),
-                  // 중앙 텍스트
-                  Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.home_work,
-                          size: 80,
-                          color: Colors.orange.shade300,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.asset(
+                    'assets/images/우리들의아지트.png',
+                    height: 200,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      // 이미지가 없을 경우 대체 위젯
+                      return Container(
+                        width: 250,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.orange.shade100,
+                              Colors.pink.shade50,
+                              Colors.purple.shade50,
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
                         ),
-                        const SizedBox(height: 16),
-                        Text(
-                          '우리들의 비밀기지',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade600,
+                        child: const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.home_work,
+                                size: 60,
+                                color: Colors.orange,
+                              ),
+                              SizedBox(height: 12),
+                              Text(
+                                '우리들의 비밀기지',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.brown,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                '이미지를 추가해주세요',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
             
             // 환영 메시지
             Text(
               '어서와! 🌟',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 color: Colors.orange.shade400,
                 fontWeight: FontWeight.bold,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               '어렸을 적 친구들과 함께 만들었던\n그 특별한 공간을 기억하나요?',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: Colors.grey.shade500,
-                height: 1.5,
+                height: 1.4,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 20),
             
             // 기능 카드들
             Row(
@@ -215,7 +230,7 @@ class WelcomeHomeView extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             Row(
               children: [
                 Expanded(
@@ -228,7 +243,7 @@ class WelcomeHomeView extends StatelessWidget {
                     Colors.green.shade600,
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: _buildFeatureCard(
                     context,
@@ -241,7 +256,7 @@ class WelcomeHomeView extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
             
             // 시작하기 버튼
             Container(
@@ -291,36 +306,36 @@ class WelcomeHomeView extends StatelessWidget {
   Widget _buildFeatureCard(BuildContext context, IconData icon, String title, 
       String subtitle, Color bgColor, Color iconColor) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: bgColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
             color: bgColor.withOpacity(0.3),
-            blurRadius: 8,
-            offset: const Offset(0, 4),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
       child: Column(
         children: [
-          Icon(icon, size: 32, color: iconColor),
-          const SizedBox(height: 8),
+          Icon(icon, size: 24, color: iconColor),
+          const SizedBox(height: 6),
           Text(
             title,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: 12,
               fontWeight: FontWeight.bold,
               color: iconColor,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 2),
           Text(
             subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: 10,
               color: iconColor.withOpacity(0.7),
             ),
           ),
@@ -328,43 +343,6 @@ class WelcomeHomeView extends StatelessWidget {
       ),
     );
   }
-}
-
-class TreeHousePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.orange.shade100.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
-    // 간단한 나무집 모양 그리기
-    final path = Path();
-    
-    // 집 지붕
-    path.moveTo(size.width * 0.3, size.height * 0.3);
-    path.lineTo(size.width * 0.5, size.height * 0.2);
-    path.lineTo(size.width * 0.7, size.height * 0.3);
-    
-    // 집 몸체
-    path.lineTo(size.width * 0.7, size.height * 0.5);
-    path.lineTo(size.width * 0.3, size.height * 0.5);
-    path.close();
-    
-    canvas.drawPath(path, paint);
-    
-    // 나무 줄기
-    final trunkPaint = Paint()
-      ..color = Colors.brown.shade200.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawRect(
-      Rect.fromLTWH(size.width * 0.45, size.height * 0.5, size.width * 0.1, size.height * 0.3),
-      trunkPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 class ProfileView extends StatelessWidget {

@@ -15,28 +15,49 @@
 
 - Flutter SDK (3.0.0 이상)
 - Dart SDK
-- Android Studio / Xcode (플랫폼별 개발 환경)
+- Chrome 브라우저 (웹 실행용)
+- Android Studio / Xcode (모바일 개발용, 선택사항)
 
-### 설치 및 실행
+### 🚀 빠른 실행 방법
 
+#### Windows 사용자 (추천)
 1. 저장소 클론
 ```bash
-git clone <repository-url>
-cd our_secret_base
+git clone https://github.com/pdj14/OurSecretBase.git
+cd OurSecretBase
 ```
 
-2. 의존성 설치
+2. **배치 파일로 간편 실행**
+```bash
+# 옵션 1: 대화형 실행 (플랫폼 선택 가능)
+run_flutter_test.bat
+
+# 옵션 2: Chrome에서 바로 실행
+quick_run.bat
+
+# 옵션 3: Flutter 환경 설정 (최초 1회)
+setup_flutter.bat
+```
+
+#### 수동 실행 방법
+1. 의존성 설치
 ```bash
 flutter pub get
 ```
 
-3. 앱 실행
+2. 앱 실행
 ```bash
-# Android
-flutter run
+# 웹 브라우저 (추천)
+flutter run -d chrome
 
-# iOS
-flutter run -d ios
+# Windows 데스크톱
+flutter run -d windows
+
+# Android 에뮬레이터
+flutter run -d android
+
+# 연결된 디바이스 확인
+flutter devices
 ```
 
 ## 프로젝트 구조
