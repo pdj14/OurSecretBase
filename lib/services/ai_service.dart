@@ -49,9 +49,16 @@ class AIService {
         _modelPath = 'simulation_mode';
       }
       
-      // 시뮬레이션 추론 엔진 초기화
-      _inferenceEngine = SimulationInferenceEngine();
-      await _inferenceEngine!.loadModel(_modelPath!);
+      // 실제 GGUF 엔진 시도, 실패 시 시뮬레이션으로 폴백
+      try {
+        _inferenceEngine = GGUFInferenceEngine();
+        await _inferenceEngine!.loadModel(_modelPath!);
+        print('실제 GGUF 엔진 로드 성공');
+      } catch (e) {
+        print('GGUF 엔진 로드 실패, 시뮬레이션 모드로 전환: $e');
+        _inferenceEngine = SimulationInferenceEngine();
+        await _inferenceEngine!.loadModel(_modelPath!);
+      }
       
     } catch (e) {
       print('웹 환경에서 모델 파일 로드 실패: $e');
@@ -61,12 +68,22 @@ class AIService {
     }
   }
   
-  /// 네이티브 환경용 초기화 (향후 구현)
+  /// 네이티브 환경용 초기화
   Future<void> _initializeForNative() async {
-    // 향후 모바일/데스크톱 환경에서 실제 파일 시스템 사용
-    _modelPath = 'native_mode';
-    _inferenceEngine = SimulationInferenceEngine();
-    await _inferenceEngine!.loadModel(_modelPath!);
+    // 네이티브 환경에서는 실제 파일 시스템의 모델 파일 사용
+    _modelPath = 'assets://model/gemma3-270m-it-q4_k_m.gguf'; // 임시 경로
+    
+    // 실제 GGUF 엔진 시도, 실패 시 시뮬레이션으로 폴백
+    try {
+      _inferenceEngine = GGUFInferenceEngine();
+      await _inferenceEngine!.loadModel(_modelPath!);
+      print('네이티브 환경에서 실제 GGUF 엔진 로드 성공');
+    } catch (e) {
+      print('네이티브 환경에서 GGUF 엔진 로드 실패, 시뮬레이션 모드로 전환: $e');
+      _inferenceEngine = SimulationInferenceEngine();
+      await _inferenceEngine!.loadModel(_modelPath!);
+    }
+    
     print('네이티브 환경 초기화 완료');
   }
   

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'native_bindings.dart';
 
 /// GGUF 모델 로더 (향후 실제 구현용)
 class GGUFLoader {
@@ -126,25 +127,95 @@ class SimulationInferenceEngine implements InferenceEngine {
   }
 }
 
-/// 실제 GGUF 추론 엔진 (향후 구현용)
+/// 실제 GGUF 추론 엔진 (FFI 기반)
 class GGUFInferenceEngine implements InferenceEngine {
-  // 실제 구현에서는 FFI를 통해 C/C++ 라이브러리와 연동
-  // 예: llama.cpp, ggml 등의 라이브러리 사용
+  final NativeBindings _bindings = NativeBindings.instance;
+  bool _isLoaded = false;
+  String? _modelPath;
   
   @override
   Future<void> loadModel(String modelPath) async {
-    // TODO: 실제 GGUF 모델 로드 구현
-    throw UnimplementedError('실제 GGUF 로더는 아직 구현되지 않았습니다');
+    try {
+      // FFI 바인딩 초기화
+      final ffiInitialized = await _bindings.initialize();
+      if (!ffiInitialized) {
+        throw Exception('FFI 바인딩 초기화 실패');
+      }
+      
+      // llama.cpp 백엔드 초기화
+      final llamaInitialized = await _bindings.initializeLlama();
+      if (!llamaInitialized) {
+        throw Exception('llama.cpp 백엔드 초기화 실패');
+      }
+      
+      // 모델 파일 로드
+      final modelLoaded = await _bindings.loadModel(modelPath);
+      if (!modelLoaded) {
+        throw Exception('모델 파일 로드 실패: $modelPath');
+      }
+      
+      _modelPath = modelPath;
+      _isLoaded = true;
+      
+      print('GGUF 모델 로드 완료: $modelPath');
+    } catch (e) {
+      print('GGUF 모델 로드 실패: $e');
+      rethrow;
+    }
   }
   
   @override
   Future<String> generate(String prompt, {int maxTokens = 100}) async {
-    // TODO: 실제 추론 구현
-    throw UnimplementedError('실제 추론 엔진은 아직 구현되지 않았습니다');
+    if (!_isLoaded) {
+      throw Exception('모델이 로드되지 않았습니다');
+    }
+    
+    try {
+      // FFI를 통해 실제 텍스트 생성
+      final result = await _bindings.generateText(prompt, maxTokens: maxTokens);
+      return result;
+    } catch (e) {
+      print('텍스트 생성 실패: $e');
+      // 폴백으로 시뮬레이션 응답 제공
+      return _generateFallbackResponse(prompt);
+    }
+  }
+  
+  /// 폴백 응답 생성 (FFI 실패 시)
+  String _generateFallbackResponse(String prompt) {
+    return "죄송해요, 현재 네이티브 모델에 문제가 있어서 임시 응답을 드려요. 😅\n"
+           "입력하신 내용: \"$prompt\"\n"
+           "곧 정상적인 AI 응답을 제공할 수 있도록 개선하겠습니다!";
+  }
+  
+  /// 모델 정보 조회
+  Future<String> getModelInfo() async {
+    if (!_isLoaded) {
+      return '모델이 로드되지 않았습니다';
+    }
+    
+    try {
+      return await _bindings.getModelInfo();
+    } catch (e) {
+      return '모델 정보 조회 실패: $e';
+    }
   }
   
   @override
   void dispose() {
-    // TODO: 리소스 정리
+    if (_isLoaded) {
+      _bindings.dispose();
+      _isLoaded = false;
+      _modelPath = null;
+      print('GGUF 추론 엔진 정리 완료');
+    }
   }
+  
+  /// 현재 상태 정보
+  Map<String, dynamic> get status => {
+    'isLoaded': _isLoaded,
+    'modelPath': _modelPath,
+    'platform': _bindings.platformInfo,
+    'ffiSupported': _bindings.isFFISupported,
+  };
 }

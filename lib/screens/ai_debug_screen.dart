@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/ai_service.dart';
+import '../services/native_bindings.dart';
+import '../services/gguf_loader.dart';
 
 class AIDebugScreen extends StatefulWidget {
   const AIDebugScreen({super.key});
@@ -10,6 +12,7 @@ class AIDebugScreen extends StatefulWidget {
 
 class _AIDebugScreenState extends State<AIDebugScreen> {
   Map<String, dynamic>? _modelInfo;
+  Map<String, dynamic>? _ffiStatus;
   bool _isLoading = true;
 
   @override
@@ -24,8 +27,19 @@ class _AIDebugScreenState extends State<AIDebugScreen> {
     await AIService.instance.initialize();
     final info = AIService.instance.modelInfo;
     
+    // FFI 상태 정보 수집
+    final bindings = NativeBindings.instance;
+    await bindings.initialize();
+    
+    final ffiStatus = {
+      'platform': bindings.platformInfo,
+      'ffiSupported': bindings.isFFISupported,
+      'initialized': bindings._isInitialized,
+    };
+    
     setState(() {
       _modelInfo = info;
+      _ffiStatus = ffiStatus;
       _isLoading = false;
     });
   }
@@ -47,6 +61,8 @@ class _AIDebugScreenState extends State<AIDebugScreen> {
                   _buildInfoCard(),
                   const SizedBox(height: 16),
                   _buildStatusCard(),
+                  const SizedBox(height: 16),
+                  _buildFFICard(),
                   const SizedBox(height: 16),
                   _buildTestCard(),
                 ],
@@ -110,6 +126,49 @@ class _AIDebugScreenState extends State<AIDebugScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildFFICard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.link, color: Colors.orange.shade600),
+                const SizedBox(width: 8),
+                const Text(
+                  'FFI 바인딩',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+            const Divider(),
+            _buildInfoRow('플랫폼', _ffiStatus?['platform'] ?? 'unknown'),
+            _buildInfoRow('FFI 지원', _ffiStatus?['ffiSupported'] == true ? '✅ 지원됨' : '❌ 미지원'),
+            _buildInfoRow('바인딩 상태', _ffiStatus?['initialized'] == true ? '✅ 초기화됨' : '❌ 미초기화'),
+            _buildInfoRow('네이티브 라이브러리', _getNativeLibraryStatus()),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  String _getNativeLibraryStatus() {
+    final ffiSupported = _ffiStatus?['ffiSupported'] == true;
+    if (!ffiSupported) return '❌ 사용 불가';
+    
+    // 플랫폼별 라이브러리 파일명
+    final platform = _ffiStatus?['platform'] ?? '';
+    if (platform.contains('Android')) return 'libour_secret_base_native.so';
+    if (platform.contains('iOS')) return 'Framework 내장';
+    if (platform.contains('Windows')) return 'our_secret_base_native.dll';
+    if (platform.contains('Linux')) return 'libour_secret_base_native.so';
+    if (platform.contains('macOS')) return 'libour_secret_base_native.dylib';
+    
+    return '알 수 없음';
   }
 
   Widget _buildTestCard() {
