@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../services/ai_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -18,12 +17,20 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _initializeAI();
     // 지키미의 첫 인사말
     _messages.add(ChatMessage(
-      text: "안녕! 나는 지키미야! 🌟\n무엇이든 편하게 이야기해줘!",
+      text: "안녕하세요! 저는 키미예요! 성은 '지'! '지 키미' 입니다.😊",
       isUser: false,
       timestamp: DateTime.now(),
     ));
+  }
+  
+  Future<void> _initializeAI() async {
+    final success = await AIService.instance.initialize();
+    if (!success) {
+      print('AI 서비스 초기화에 실패했습니다.');
+    }
   }
 
   @override
@@ -62,8 +69,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
 
     try {
-      // 로컬 AI 모델과 통신 (예시 - 실제 구현 시 수정 필요)
-      final response = await _getAIResponse(message);
+      // OnDevice AI 모델과 통신
+      final response = await AIService.instance.generateResponse(message);
       
       setState(() {
         _messages.add(ChatMessage(
@@ -76,7 +83,7 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (e) {
       setState(() {
         _messages.add(ChatMessage(
-          text: "미안해, 지금은 대답하기 어려워... 😅\n다시 한번 말해줄래?",
+          text: "미안해요, 지금 대답하기 어렵네요... 😅\n다시 한번 말해주실래요?",
           isUser: false,
           timestamp: DateTime.now(),
         ));
@@ -87,21 +94,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _scrollToBottom();
   }
 
-  Future<String> _getAIResponse(String message) async {
-    // 임시 응답 - 실제로는 로컬 AI 모델과 통신
-    await Future.delayed(const Duration(seconds: 1));
-    
-    // 간단한 응답 패턴
-    if (message.contains('안녕') || message.contains('하이')) {
-      return "안녕! 반가워! 😊";
-    } else if (message.contains('이름')) {
-      return "내 이름은 지키미야! 성은 '지', 이름은 '키미'라고 해! ✨";
-    } else if (message.contains('뭐해') || message.contains('뭐하고')) {
-      return "너와 이야기하고 있어! 정말 즐거워! 🎉";
-    } else {
-      return "흥미로운 이야기네! 더 자세히 말해줄래? 🤔";
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/hideout_card.dart';
 import 'chat_screen.dart';
+import 'ai_debug_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -361,8 +362,87 @@ class ProfileView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
-      child: Text('프로필 화면'),
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '설정',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 20),
+          
+          // AI 디버그 정보 카드
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.smart_toy, color: Colors.purple.shade600),
+              title: const Text('AI 모델 정보'),
+              subtitle: const Text('Gemma 모델 상태 및 디버그 정보'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const AIDebugScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // 채팅 바로가기 카드
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.chat, color: Colors.blue.shade600),
+              title: const Text('지키미와 채팅'),
+              subtitle: const Text('AI 어시스턴트와 대화하기'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ChatScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(height: 12),
+          
+          // 앱 정보 카드
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.info, color: Colors.green.shade600),
+              title: const Text('앱 정보'),
+              subtitle: const Text('버전 1.0.0 - OnDevice AI 지원'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                showAboutDialog(
+                  context: context,
+                  applicationName: '우리들의아지트',
+                  applicationVersion: '1.0.0',
+                  applicationIcon: Icon(
+                    Icons.home_work,
+                    size: 48,
+                    color: Colors.orange.shade400,
+                  ),
+                  children: [
+                    const Text('친구들과 함께하는 특별한 공간'),
+                    const SizedBox(height: 8),
+                    const Text('• OnDevice AI (Gemma 3 270M)'),
+                    const Text('• 완전한 오프라인 동작'),
+                    const Text('• 개인정보 보호 보장'),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
