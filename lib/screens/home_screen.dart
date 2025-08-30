@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/custom_app_bar.dart';
 import '../widgets/hideout_card.dart';
+import 'chat_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -245,13 +246,23 @@ class WelcomeHomeView extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  child: _buildFeatureCard(
-                    context,
-                    Icons.auto_stories,
-                    '이야기 나누기',
-                    '소중한 대화하기',
-                    Colors.purple.shade100,
-                    Colors.purple.shade600,
+                  child: GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ChatScreen(),
+                        ),
+                      );
+                    },
+                    child: _buildFeatureCard(
+                      context,
+                      Icons.chat_bubble,
+                      '지키미와 대화하기',
+                      '친근한 AI와 채팅하기',
+                      Colors.purple.shade100,
+                      Colors.purple.shade600,
+                    ),
                   ),
                 ),
               ],
