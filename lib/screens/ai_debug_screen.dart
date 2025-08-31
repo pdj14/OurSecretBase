@@ -34,7 +34,7 @@ class _AIDebugScreenState extends State<AIDebugScreen> {
     final ffiStatus = {
       'platform': bindings.platformInfo,
       'ffiSupported': bindings.isFFISupported,
-      'initialized': bindings._isInitialized,
+      'initialized': bindings.isFFISupported,
     };
     
     setState(() {
