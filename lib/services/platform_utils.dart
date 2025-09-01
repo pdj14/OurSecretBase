@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as path;
@@ -9,33 +8,18 @@ class PlatformUtils {
   
   /// 현재 플랫폼에서 사용할 네이티브 라이브러리 경로 반환
   static String getNativeLibraryPath() {
-    if (kIsWeb) {
-      throw UnsupportedError('웹에서는 네이티브 라이브러리를 사용할 수 없습니다');
-    }
-    
     if (Platform.isAndroid) {
       return 'libour_secret_base_native.so';
     } else if (Platform.isIOS) {
       // iOS에서는 프로세스 내에 정적으로 링크됨
       return '';
-    } else if (Platform.isWindows) {
-      return 'our_secret_base_native.dll';
-    } else if (Platform.isLinux) {
-      return 'libour_secret_base_native.so';
-    } else if (Platform.isMacOS) {
-      return 'libour_secret_base_native.dylib';
+    } else {
+      throw UnsupportedError('지원되지 않는 플랫폼: ${Platform.operatingSystem}');
     }
-    
-    throw UnsupportedError('지원되지 않는 플랫폼: ${Platform.operatingSystem}');
   }
   
   /// 모델 파일을 앱의 문서 디렉토리로 복사
   static Future<String> copyModelToDocuments() async {
-    if (kIsWeb) {
-      // 웹에서는 assets에서 직접 사용
-      return 'assets://model/gemma3-270m-it-q4_k_m.gguf';
-    }
-    
     try {
       final documentsDir = await getApplicationDocumentsDirectory();
       final modelFile = File(path.join(documentsDir.path, 'gemma3-270m-it-q4_k_m.gguf'));
@@ -63,8 +47,6 @@ class PlatformUtils {
   
   /// 플랫폼별 최적화된 스레드 수 반환
   static int getOptimalThreadCount() {
-    if (kIsWeb) return 1;
-    
     // 기본적으로 CPU 코어 수의 절반 사용 (배터리 효율성 고려)
     final coreCount = Platform.numberOfProcessors;
     return (coreCount / 2).ceil().clamp(1, 8);
@@ -72,8 +54,6 @@ class PlatformUtils {
   
   /// 플랫폼별 최적화된 컨텍스트 크기 반환
   static int getOptimalContextSize() {
-    if (kIsWeb) return 512;
-    
     if (Platform.isAndroid || Platform.isIOS) {
       // 모바일에서는 메모리 제약으로 작은 컨텍스트 사용
       return 1024;
@@ -85,8 +65,6 @@ class PlatformUtils {
   
   /// 플랫폼별 배치 크기 반환
   static int getOptimalBatchSize() {
-    if (kIsWeb) return 128;
-    
     if (Platform.isAndroid || Platform.isIOS) {
       return 256;
     } else {

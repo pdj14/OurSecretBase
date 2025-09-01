@@ -1,7 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
 import 'package:ffi/ffi.dart';
-import 'package:flutter/foundation.dart';
 import 'platform_utils.dart';
 
 /// llama.cpp 네이티브 라이브러리와의 FFI 바인딩
@@ -47,11 +46,6 @@ class NativeBindings {
   /// 플랫폼별 네이티브 라이브러리 로드
   DynamicLibrary? _loadNativeLibrary() {
     try {
-      if (kIsWeb) {
-        print('웹 환경에서는 네이티브 라이브러리를 사용할 수 없습니다');
-        return null;
-      }
-      
       final libraryPath = PlatformUtils.getNativeLibraryPath();
       print('네이티브 라이브러리 로드 시도: $libraryPath');
       
@@ -117,16 +111,7 @@ class NativeBindings {
     // 향후 구현에서는 MethodChannel을 사용하거나
     // 직접 JNI 바인딩을 구현해야 함
     
-    // 현재는 시뮬레이션 함수로 대체
-    _initializeLlama = () => 1;
-    _loadModel = (path) => 1;
-    _generateText = (prompt, maxTokens) {
-      final result = 'Android FFI 시뮬레이션 응답'.toNativeUtf8();
-      return result;
-    };
-    _getModelInfo = () => 'Android 모델 정보'.toNativeUtf8();
-    _cleanup = () {};
-    _freeString = (ptr) => malloc.free(ptr);
+    throw UnsupportedError('Android FFI 바인딩은 아직 구현되지 않았습니다');
   }
   
   /// llama.cpp 백엔드 초기화
@@ -215,12 +200,11 @@ class NativeBindings {
   
   /// 현재 플랫폼 정보
   String get platformInfo {
-    if (kIsWeb) return 'Web (FFI 미지원)';
     return '${Platform.operatingSystem} (${Platform.operatingSystemVersion})';
   }
   
   /// FFI 사용 가능 여부
   bool get isFFISupported {
-    return !kIsWeb && _lib != null;
+    return _lib != null;
   }
 }

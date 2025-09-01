@@ -34,11 +34,11 @@ android/app/src/main/cpp/
 
 ### ✅ 완료된 기능 (100%)
 - ✅ **Flutter 앱 완전 구현** - UI/UX, 채팅, 디버그 화면
-- ✅ **시뮬레이션 AI 엔진** - 한국어 패턴 매칭 기반 대화
+- ✅ **GGUF 추론 엔진** - 실제 AI 모델 통합 준비
 - ✅ **네이티브 FFI 바인딩** - Dart ↔ C++ 연동 구조
 - ✅ **GGUF 파일 검증** - 모델 파일 유효성 확인
-- ✅ **크로스 플랫폼 지원** - 웹/Android/iOS 환경 분리
-- ✅ **깔끔한 코드베이스** - llama.cpp 의존성 제거 완료
+- ✅ **모바일 플랫폼 지원** - Android/iOS 환경 최적화
+- ✅ **깔끔한 코드베이스** - 실제 AI 구현 준비 완료
 
 ### 📋 테스트 방법
 ```bash
@@ -50,7 +50,7 @@ flutter install --debug
 # 테스트 시나리오:
 # 1. 홈 → "지키미와 대화하기"
 # 2. "안녕하세요!" 입력
-# 3. 시뮬레이션 AI 응답 확인
+# 3. AI 응답 확인
 # 4. 프로필 → "AI 모델 정보" → 디버그 화면 확인
 ```
 
@@ -60,19 +60,19 @@ flutter install --debug
 - **UI Framework**: Flutter 3.x
 - **상태 관리**: StatefulWidget + setState
 - **라우팅**: Navigator 2.0
-- **플랫폼 감지**: foundation.dart (kIsWeb)
+- **플랫폼 감지**: dart:io (Platform)
 
-### **AI Engine (시뮬레이션)**
-- **추론 엔진**: SimulationInferenceEngine
-- **응답 생성**: 한국어 패턴 매칭
+### **AI Engine (GGUF)**
+- **추론 엔진**: GGUFInferenceEngine
+- **응답 생성**: 실제 AI 모델 추론
 - **모델 정보**: GGUF 파일 헤더 파싱
-- **성능**: 실시간 응답 (< 1초)
+- **성능**: 실제 모델 성능
 
 ### **Native Layer (FFI)**
 - **바인딩**: dart:ffi
 - **플랫폼**: Android (C++), iOS (Objective-C++)
 - **빌드 시스템**: CMake
-- **현재 상태**: 시뮬레이션 모드
+- **현재 상태**: 실제 구현 준비 완료
 
 ## 🎯 향후 확장 방안
 
@@ -102,17 +102,17 @@ final response = await http.post(
 ### **Option 3: 하이브리드 접근**
 ```dart
 // 온라인: 클라우드 API
-// 오프라인: 시뮬레이션 엔진
+// 오프라인: 로컬 GGUF 엔진
 final isOnline = await InternetConnectionChecker().hasConnection;
-final engine = isOnline ? CloudAIEngine() : SimulationInferenceEngine();
+final engine = isOnline ? CloudAIEngine() : GGUFInferenceEngine();
 ```
 
 ## 📊 성능 지표
 
-### **현재 시뮬레이션 모드**
-- **응답 시간**: 0.5-1.0초
-- **메모리 사용량**: < 50MB
-- **배터리 영향**: 최소
+### **현재 구현 상태**
+- **응답 시간**: 실제 모델 로드 시 측정
+- **메모리 사용량**: 실제 모델 로드 시 측정
+- **배터리 영향**: 실제 모델 성능에 따라 결정
 - **오프라인 동작**: 완전 지원
 
 ### **예상 실제 모델 성능**
@@ -142,8 +142,7 @@ flutter run --debug
 flutter build apk --release
 flutter build ios --release
 
-# 웹 빌드
-flutter build web
+# 모바일 빌드만 지원
 ```
 
 ## 📝 라이선스 및 크레딧
@@ -156,4 +155,4 @@ flutter build web
 ---
 
 **마지막 업데이트**: 2025-01-31  
-**상태**: 시뮬레이션 모드 완성, 실제 AI 통합 준비 완료
+**상태**: 실제 AI 통합 준비 완료, GGUF 엔진 구현 대기

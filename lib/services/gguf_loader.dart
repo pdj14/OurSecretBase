@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'native_bindings.dart';
 
@@ -27,14 +26,14 @@ class GGUFLoader {
         'fileSize': bytes.length,
         'isValid': true,
         'magic': magic.toRadixString(16),
-        'platform': kIsWeb ? 'web' : 'native',
+        'platform': 'mobile',
       };
     } catch (e) {
       return {
         'fileSize': 0,
         'isValid': false,
         'error': e.toString(),
-        'platform': kIsWeb ? 'web' : 'native',
+        'platform': 'mobile',
       };
     }
   }
@@ -69,63 +68,7 @@ abstract class InferenceEngine {
   void dispose();
 }
 
-/// 시뮬레이션 추론 엔진
-class SimulationInferenceEngine implements InferenceEngine {
-  bool _isLoaded = false;
-  
-  @override
-  Future<void> loadModel(String modelPath) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _isLoaded = true;
-    print('시뮬레이션 모델 로드 완료: $modelPath');
-  }
-  
-  @override
-  Future<String> generate(String prompt, {int maxTokens = 100}) async {
-    if (!_isLoaded) {
-      throw Exception('모델이 로드되지 않았습니다');
-    }
-    
-    // 실제 추론 시간을 시뮬레이션
-    final processingTime = 200 + (prompt.length * 5);
-    await Future.delayed(Duration(milliseconds: processingTime));
-    
-    return _generateSimulatedResponse(prompt);
-  }
-  
-  String _generateSimulatedResponse(String prompt) {
-    // 간단한 패턴 기반 응답 생성
-    final lowerPrompt = prompt.toLowerCase();
-    
-    if (lowerPrompt.contains('모델') || lowerPrompt.contains('ai')) {
-      return "저는 Gemma 3 270M 모델을 기반으로 한 AI입니다! 🤖\n현재는 시뮬레이션 모드로 동작하고 있어요.";
-    }
-    
-    if (lowerPrompt.contains('성능') || lowerPrompt.contains('속도')) {
-      return "OnDevice AI의 장점은 빠른 응답 속도와 개인정보 보호예요! 🚀\n인터넷 연결 없이도 동작할 수 있답니다.";
-    }
-    
-    if (lowerPrompt.contains('크기') || lowerPrompt.contains('용량')) {
-      return "제 모델 파일은 약 150MB 정도예요! 📁\n4-bit 양자화로 크기를 최적화했답니다.";
-    }
-    
-    // 기본 응답
-    final responses = [
-      "정말 흥미로운 질문이네요! 더 자세히 설명해주실 수 있나요? 🤔",
-      "그것에 대해 함께 생각해보면 좋겠어요! 어떤 관점에서 접근해볼까요? 💭",
-      "와, 그런 생각을 하셨군요! 저도 비슷한 경험이 있어요. 🌟",
-      "정말 좋은 주제네요! 더 많은 이야기를 들려주세요! ✨",
-    ];
-    
-    return responses[prompt.hashCode.abs() % responses.length];
-  }
-  
-  @override
-  void dispose() {
-    _isLoaded = false;
-    print('시뮬레이션 엔진 정리 완료');
-  }
-}
+
 
 /// 실제 GGUF 추론 엔진 (FFI 기반)
 class GGUFInferenceEngine implements InferenceEngine {
@@ -176,17 +119,11 @@ class GGUFInferenceEngine implements InferenceEngine {
       return result;
     } catch (e) {
       print('텍스트 생성 실패: $e');
-      // 폴백으로 시뮬레이션 응답 제공
-      return _generateFallbackResponse(prompt);
+      rethrow;
     }
   }
   
-  /// 폴백 응답 생성 (FFI 실패 시)
-  String _generateFallbackResponse(String prompt) {
-    return "죄송해요, 현재 네이티브 모델에 문제가 있어서 임시 응답을 드려요. 😅\n"
-           "입력하신 내용: \"$prompt\"\n"
-           "곧 정상적인 AI 응답을 제공할 수 있도록 개선하겠습니다!";
-  }
+
   
   /// 모델 정보 조회
   Future<String> getModelInfo() async {
