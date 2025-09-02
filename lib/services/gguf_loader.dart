@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'native_bindings.dart';
 
@@ -6,28 +7,13 @@ import 'native_bindings.dart';
 class GGUFLoader {
   static const String _modelAssetPath = 'model/gemma3-270m-it-q4_k_m.gguf';
   
-  /// GGUF 파일 헤더 정보
+  /// GGUF 파일 헤더 정보 (assets에서)
   static Future<Map<String, dynamic>> getModelInfo() async {
     try {
       final byteData = await rootBundle.load(_modelAssetPath);
       final bytes = byteData.buffer.asUint8List();
       
-      // GGUF 매직 넘버 확인 (0x46554747 = "GGUF")
-      if (bytes.length < 4) {
-        throw Exception('파일이 너무 작습니다');
-      }
-      
-      final magic = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.little);
-      if (magic != 0x46554747) {
-        throw Exception('유효하지 않은 GGUF 파일입니다');
-      }
-      
-      return {
-        'fileSize': bytes.length,
-        'isValid': true,
-        'magic': magic.toRadixString(16),
-        'platform': 'mobile',
-      };
+      return _validateGGUFFile(bytes);
     } catch (e) {
       return {
         'fileSize': 0,
@@ -36,6 +22,55 @@ class GGUFLoader {
         'platform': 'mobile',
       };
     }
+  }
+  
+  /// GGUF 파일 헤더 정보 (외부 파일에서)
+  static Future<Map<String, dynamic>> getModelInfoFromPath(String filePath) async {
+    try {
+      final file = File(filePath);
+      if (!await file.exists()) {
+        throw Exception('파일이 존재하지 않습니다: $filePath');
+      }
+      
+      // 파일 크기가 크므로 헤더만 읽기 (처음 1KB)
+      final bytes = await file.openRead(0, 1024).expand((chunk) => chunk).toList();
+      final uint8List = Uint8List.fromList(bytes);
+      
+      final result = _validateGGUFFile(uint8List);
+      
+      // 실제 파일 크기 추가
+      final stat = await file.stat();
+      result['fileSize'] = stat.size;
+      
+      return result;
+    } catch (e) {
+      return {
+        'fileSize': 0,
+        'isValid': false,
+        'error': e.toString(),
+        'platform': 'mobile',
+      };
+    }
+  }
+  
+  /// GGUF 파일 유효성 검증
+  static Map<String, dynamic> _validateGGUFFile(Uint8List bytes) {
+    // GGUF 매직 넘버 확인 (0x46554747 = "GGUF")
+    if (bytes.length < 4) {
+      throw Exception('파일이 너무 작습니다');
+    }
+    
+    final magic = ByteData.sublistView(bytes, 0, 4).getUint32(0, Endian.little);
+    if (magic != 0x46554747) {
+      throw Exception('유효하지 않은 GGUF 파일입니다');
+    }
+    
+    return {
+      'fileSize': bytes.length,
+      'isValid': true,
+      'magic': magic.toRadixString(16),
+      'platform': 'mobile',
+    };
   }
   
   /// 모델 메타데이터 파싱 (향후 구현)

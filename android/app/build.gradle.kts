@@ -29,29 +29,9 @@ android {
         versionCode = flutter.versionCode
         versionName = flutter.versionName
         
-        // NDK 설정 - llama.cpp 빌드를 위한 설정
+        // NDK 설정 - libllama.so 사용을 위한 설정
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
-        }
-        
-        // CMake 설정
-        externalNativeBuild {
-            cmake {
-                cppFlags += listOf("-std=c++17", "-frtti", "-fexceptions")
-                arguments += listOf(
-                    "-DANDROID_STL=c++_shared",
-                    "-DLLAMA_BUILD_TESTS=OFF",
-                    "-DLLAMA_BUILD_EXAMPLES=OFF"
-                )
-            }
-        }
-    }
-    
-    // CMake 빌드 설정
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+            abiFilters += listOf("arm64-v8a")
         }
     }
 

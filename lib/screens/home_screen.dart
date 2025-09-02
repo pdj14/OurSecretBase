@@ -3,6 +3,7 @@ import '../widgets/custom_app_bar.dart';
 import '../widgets/hideout_card.dart';
 import 'chat_screen.dart';
 import 'ai_debug_screen.dart';
+import 'model_selection_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -372,6 +373,26 @@ class ProfileView extends StatelessWidget {
             style: Theme.of(context).textTheme.headlineSmall,
           ),
           const SizedBox(height: 20),
+          
+          // AI 모델 선택 카드
+          Card(
+            child: ListTile(
+              leading: Icon(Icons.model_training, color: Colors.orange.shade600),
+              title: const Text('AI 모델 선택'),
+              subtitle: const Text('사용할 AI 모델을 선택하세요'),
+              trailing: const Icon(Icons.arrow_forward_ios),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ModelSelectionScreen(),
+                  ),
+                );
+              },
+            ),
+          ),
+          
+          const SizedBox(height: 12),
           
           // AI 디버그 정보 카드
           Card(
