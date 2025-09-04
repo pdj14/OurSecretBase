@@ -559,7 +559,8 @@ class NativeBindings {
               1, // unparse_special
             );
             if (wrote > 0) {
-              detok = outBuf.cast<Utf8>().toDartString();
+              final bytes = outBuf.asTypedList(wrote);
+              detok = utf8.decode(bytes, allowMalformed: true);
             }
             malloc.free(outBuf);
             malloc.free(genPtr);
