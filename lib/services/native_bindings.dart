@@ -428,7 +428,7 @@ class NativeBindings {
   }
   
   /// 텍스트 생성 (greedy decoding)
-  Future<String> generateText(String prompt, {int maxTokens = 100}) async {
+  Future<String> generateText(String prompt, {int maxTokens = 512, int minTokensBeforeEog = 32, bool autoContinue = true, int maxTotalTokens = 2048}) async {
     if (!_isInitialized || _model == null || _context == null) {
       return 'FFI가 초기화되지 않았거나 모델이 로드되지 않았습니다';
     }
@@ -474,27 +474,33 @@ class NativeBindings {
         int lastDecodeResult = 0;
         
         // 프롬프트 배치: helper 사용 (llama_batch_get_one)
-        print('프롬프트 배치 구성 시작 (get_one)...');
-        final promptTokensPtr = malloc<Int32>(tokenCount);
-        for (int i = 0; i < tokenCount; i++) {
-          promptTokensPtr[i] = tokens[i];
-        }
-        final promptBatch = _llamaBatchGetOne(promptTokensPtr, tokenCount);
-        if (promptBatch.logits != nullptr) {
-          // 마지막 토큰만 logits 요청
-          for (int i = 0; i < tokenCount; i++) {
-            promptBatch.logits[i] = (i == tokenCount - 1) ? 1 : 0;
+        print('프롬프트 배치 구성 시작 (ubatch get_one)...');
+        const int chunkSize = 32; // 작은 단위로 나눠 디코드하여 KV 슬롯 문제 회피
+        int processed = 0;
+        allTokensProcessed = true;
+        while (processed < tokenCount) {
+          final remain = tokenCount - processed;
+          final cur = remain < chunkSize ? remain : chunkSize;
+          final chunkPtr = malloc<Int32>(cur);
+          for (int i = 0; i < cur; i++) {
+            chunkPtr[i] = tokens[processed + i];
           }
-        }
-        print('llama_decode 호출 시작 (프롬프트)...');
-        final decodeResult = _llamaDecode(_context!, promptBatch);
-        malloc.free(promptTokensPtr);
-        print('llama_decode 결과: $decodeResult');
-        if (decodeResult != 0) {
-          allTokensProcessed = false;
-          lastDecodeResult = decodeResult;
-        } else {
-          allTokensProcessed = true;
+          final batch = _llamaBatchGetOne(chunkPtr, cur);
+          if (batch.logits != nullptr) {
+            for (int i = 0; i < cur; i++) {
+              batch.logits[i] = (i == cur - 1) ? 1 : 0;
+            }
+          }
+          print('llama_decode 호출 시작 (프롬프트 ubatch: $processed~${processed + cur - 1})');
+          final dr = _llamaDecode(_context!, batch);
+          malloc.free(chunkPtr);
+          print('llama_decode 결과: $dr');
+          if (dr != 0) {
+            allTokensProcessed = false;
+            lastDecodeResult = dr;
+            break;
+          }
+          processed += cur;
         }
         
         print('모든 토큰 처리 시뮬레이션 완료');
@@ -504,25 +510,42 @@ class NativeBindings {
           final generated = <int>[];
           int steps = 0;
 
-          while (steps < maxTokens) {
+          // 내부 함수: 한 스텝 생성
+          bool generateOneStep({required bool ignoreEog}) {
             final logitsPtr = _llamaGetLogitsIth(_context!, -1);
             if (logitsPtr == nullptr) {
-              break;
+              return false;
             }
 
             final nVocab = _llamaVocabNTokens(vocab);
-            int bestId = 0;
+            int bestId = -1;
             double bestLogit = -double.maxFinite;
+            int secondId = -1;
+            double secondLogit = -double.maxFinite;
             for (int i = 0; i < nVocab; i++) {
-              final v = logitsPtr.elementAt(i).value;
+              final v = logitsPtr.elementAt(i).value.toDouble();
               if (v > bestLogit) {
-                bestLogit = v.toDouble();
-                bestId = i;
+                secondLogit = bestLogit; secondId = bestId;
+                bestLogit = v; bestId = i;
+              } else if (v > secondLogit) {
+                secondLogit = v; secondId = i;
               }
             }
 
-            if (_llamaVocabIsEog(vocab, bestId) != 0) {
-              break;
+            // 너무 이른 EOG 방지: 초기 N토큰 동안은 EOG를 무시하고 차선 토큰 사용
+            if (steps < minTokensBeforeEog && bestId != -1 && _llamaVocabIsEog(vocab, bestId) != 0) {
+              if (secondId != -1) {
+                bestId = secondId;
+              }
+            }
+
+            // EOG 처리: auto-continue 구간에서는 차선 토큰으로 대체 시도
+            if (bestId != -1 && _llamaVocabIsEog(vocab, bestId) != 0) {
+              if (ignoreEog && secondId != -1) {
+                bestId = secondId;
+              } else {
+                return false;
+              }
             }
 
             generated.add(bestId);
@@ -536,28 +559,57 @@ class NativeBindings {
             final r = _llamaDecode(_context!, stepBatch);
             malloc.free(oneToken);
             if (r != 0) {
-              break;
+              return false;
             }
             steps++;
+            return true;
           }
 
-          // detokenize로 UTF-8 문자열 생성
+          // 1차 루프: maxTokens까지 생성
+          while (steps < maxTokens) {
+            if (!generateOneStep(ignoreEog: false)) break;
+          }
+
+          // 자동 이어쓰기: EOG가 아니고 총 토큰 한도 내면 계속
+          if (autoContinue) {
+            while (steps < maxTotalTokens) {
+              if (!generateOneStep(ignoreEog: true)) break;
+            }
+          }
+
+          // detokenize로 UTF-8 문자열 생성 (동적 버퍼 크기)
           String detok = '';
           if (generated.isNotEmpty) {
             final genPtr = malloc<Int32>(generated.length);
             for (int i = 0; i < generated.length; i++) {
               genPtr[i] = generated[i];
             }
-            final outBuf = malloc<Uint8>(8192);
-            final wrote = _llamaDetokenize(
+            int cap = 8192;
+            Pointer<Uint8> outBuf = malloc<Uint8>(cap);
+            int wrote = _llamaDetokenize(
               vocab,
               genPtr,
               generated.length,
               outBuf.cast<Utf8>(),
-              8192,
+              cap,
               1, // remove_special
               1, // unparse_special
             );
+            if (wrote < 0) {
+              // 필요한 크기만큼 재할당 후 재시도
+              malloc.free(outBuf);
+              cap = -wrote + 4;
+              outBuf = malloc<Uint8>(cap);
+              wrote = _llamaDetokenize(
+                vocab,
+                genPtr,
+                generated.length,
+                outBuf.cast<Utf8>(),
+                cap,
+                1,
+                1,
+              );
+            }
             if (wrote > 0) {
               final bytes = outBuf.asTypedList(wrote);
               detok = utf8.decode(bytes, allowMalformed: true);
