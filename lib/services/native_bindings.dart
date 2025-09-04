@@ -127,11 +127,11 @@ typedef LlamaModelDefaultParamsDart = LlamaModelParams Function();
 typedef LlamaContextDefaultParamsC = LlamaContextParams Function();
 typedef LlamaContextDefaultParamsDart = LlamaContextParams Function();
 
-typedef LlamaModelLoadFromFileC = Pointer Function(Pointer<Utf8> path, Pointer params);
-typedef LlamaModelLoadFromFileDart = Pointer Function(Pointer<Utf8> path, Pointer params);
+typedef LlamaModelLoadFromFileC = Pointer Function(Pointer<Utf8> path, LlamaModelParams params);
+typedef LlamaModelLoadFromFileDart = Pointer Function(Pointer<Utf8> path, LlamaModelParams params);
 
-typedef LlamaInitFromModelC = Pointer Function(Pointer model, Pointer params);
-typedef LlamaInitFromModelDart = Pointer Function(Pointer model, Pointer params);
+typedef LlamaInitFromModelC = Pointer Function(Pointer model, LlamaContextParams params);
+typedef LlamaInitFromModelDart = Pointer Function(Pointer model, LlamaContextParams params);
 
 typedef LlamaTokenizeC = Int32 Function(Pointer vocab, Pointer<Utf8> text, Int32 textLen, Pointer<Int32> tokens, Int32 nMaxTokens, Bool addBos, Bool special);
 typedef LlamaTokenizeDart = int Function(Pointer vocab, Pointer<Utf8> text, int textLen, Pointer<Int32> tokens, int nMaxTokens, bool addBos, bool special);
@@ -145,7 +145,7 @@ typedef LlamaFreeDart = void Function(Pointer ctx);
 typedef LlamaModelFreeC = Void Function(Pointer model);
 typedef LlamaModelFreeDart = void Function(Pointer model);
 
-typedef LlamaModelDescC = Int32 Function(Pointer model, Pointer<Utf8> buf, Uint64 bufSize);
+typedef LlamaModelDescC = Int32 Function(Pointer model, Pointer<Utf8> buf, IntPtr bufSize);
 typedef LlamaModelDescDart = int Function(Pointer model, Pointer<Utf8> buf, int bufSize);
 
 typedef LlamaModelGetVocabC = Pointer Function(Pointer model);
@@ -380,36 +380,20 @@ class NativeBindings {
       // 기존 모델/컨텍스트 정리
       _cleanup();
       
-      // 모델 로드 (안전한 방법)
+      // 모델 로드 (params를 by-value로 전달)
       final pathPtr = modelPath.toNativeUtf8();
-      
-      // 기본 파라미터를 사용하되 안전하게
       final modelParams = _llamaModelDefaultParams();
-      final modelParamsPtr = malloc<LlamaModelParams>();
-      
-      // 구조체 복사
-      modelParamsPtr.ref = modelParams;
-      
-      _model = _llamaModelLoadFromFile(pathPtr, modelParamsPtr.cast());
-      
+      _model = _llamaModelLoadFromFile(pathPtr, modelParams);
       malloc.free(pathPtr);
-      malloc.free(modelParamsPtr);
       
       if (_model == nullptr) {
         print('모델 로드 실패: $_model');
         return false;
       }
       
-      // 컨텍스트 초기화 (안전한 방법)
+      // 컨텍스트 초기화 (params를 by-value로 전달)
       final contextParams = _llamaContextDefaultParams();
-      final contextParamsPtr = malloc<LlamaContextParams>();
-      
-      // 구조체 복사
-      contextParamsPtr.ref = contextParams;
-      
-      _context = _llamaInitFromModel(_model!, contextParamsPtr.cast());
-      
-      malloc.free(contextParamsPtr);
+      _context = _llamaInitFromModel(_model!, contextParams);
       
       if (_context == nullptr) {
         print('컨텍스트 초기화 실패');
@@ -477,8 +461,8 @@ class NativeBindings {
         print('모델 포인터: $_model');
         
         // C++: llama_batch batch = llama_batch_init(tokenCount, 0, 1);
-        // capacity를 토큰 수만큼 요청
-        final batch = _llamaBatchInit(512, 0, 1);
+        // capacity를 실제 토큰 수만큼 정확히 요청 (512 대신 tokenCount)
+        final batch = _llamaBatchInit(tokenCount, 0, 1);
         print('llama_batch_init 완료: nTokens=${batch.nTokens}');
         
         if (batch.token != nullptr) {
@@ -498,8 +482,11 @@ class NativeBindings {
               print('위치 설정: ${batch.pos[i]}');
             }
             
-            // C++: batch.seq_id[i] = 0;
-            if (batch.seqId != nullptr && batch.nSeqId != nullptr && batch.nSeqId[i] > 0) {
+            // C++: batch.n_seq_id[i] = 1; batch.seq_id[i][0] = 0;
+            if (batch.nSeqId != nullptr) {
+              batch.nSeqId[i] = 1;
+            }
+            if (batch.seqId != nullptr) {
               batch.seqId[i][0] = 0;
               print('시퀀스 ID 설정: ${batch.seqId[i][0]}');
             }
