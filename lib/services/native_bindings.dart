@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:convert';
 import 'package:ffi/ffi.dart';
 
 // llama.cpp 구조체 정의 (간단한 버전)
@@ -182,6 +183,12 @@ typedef LlamaGetLogitsDart = Pointer<Float> Function(Pointer ctx);
 typedef LlamaVocabNTokensC = Int32 Function(Pointer vocab);
 typedef LlamaVocabNTokensDart = int Function(Pointer vocab);
 
+typedef LlamaVocabIsEogC = Uint8 Function(Pointer vocab, Int32 token);
+typedef LlamaVocabIsEogDart = int Function(Pointer vocab, int token);
+
+typedef LlamaDetokenizeC = Int32 Function(Pointer vocab, Pointer<Int32> tokens, Int32 nTokens, Pointer<Utf8> text, Int32 textLenMax, Uint8 removeSpecial, Uint8 unparseSpecial);
+typedef LlamaDetokenizeDart = int Function(Pointer vocab, Pointer<Int32> tokens, int nTokens, Pointer<Utf8> text, int textLenMax, int removeSpecial, int unparseSpecial);
+
 /// llama.cpp 네이티브 라이브러리와의 FFI 바인딩
 class NativeBindings {
   static NativeBindings? _instance;
@@ -218,6 +225,8 @@ class NativeBindings {
   late LlamaGetLogitsIthDart _llamaGetLogitsIth;
   late LlamaGetLogitsDart _llamaGetLogits;
   late LlamaVocabNTokensDart _llamaVocabNTokens;
+  late LlamaVocabIsEogDart _llamaVocabIsEog;
+  late LlamaDetokenizeDart _llamaDetokenize;
   
   /// FFI 바인딩 초기화
   Future<bool> initialize() async {
@@ -359,6 +368,14 @@ class NativeBindings {
       _llamaVocabNTokens = _lib!
           .lookup<NativeFunction<LlamaVocabNTokensC>>('llama_vocab_n_tokens')
           .asFunction();
+
+      _llamaVocabIsEog = _lib!
+          .lookup<NativeFunction<LlamaVocabIsEogC>>('llama_vocab_is_eog')
+          .asFunction();
+
+      _llamaDetokenize = _lib!
+          .lookup<NativeFunction<LlamaDetokenizeC>>('llama_detokenize')
+          .asFunction();
       
       print('llama.cpp 함수 바인딩 완료');
     } catch (e) {
@@ -410,7 +427,7 @@ class NativeBindings {
     }
   }
   
-  /// 텍스트 생성 (간단한 구현)
+  /// 텍스트 생성 (greedy decoding)
   Future<String> generateText(String prompt, {int maxTokens = 100}) async {
     if (!_isInitialized || _model == null || _context == null) {
       return 'FFI가 초기화되지 않았거나 모델이 로드되지 않았습니다';
@@ -427,10 +444,11 @@ class NativeBindings {
       final promptPtr = prompt.toNativeUtf8();
       final tokens = malloc<Int32>(512); // 최대 512 토큰
       
+      final textLenBytes = utf8.encode(prompt).length;
       final tokenCount = _llamaTokenize(
         vocab,
         promptPtr,
-        prompt.length,
+        textLenBytes,
         tokens,
         512,
         true, // add_bos
@@ -455,127 +473,98 @@ class NativeBindings {
         bool allTokensProcessed = true;
         int lastDecodeResult = 0;
         
-        // 4. 배치 초기화 (C++ 예제 기반)
-        print('배치 초기화 시작...');
-        print('컨텍스트 포인터: $_context');
-        print('모델 포인터: $_model');
-        
-        // C++: llama_batch batch = llama_batch_init(tokenCount, 0, 1);
-        // capacity를 실제 토큰 수만큼 정확히 요청 (512 대신 tokenCount)
-        final batch = _llamaBatchInit(tokenCount, 0, 1);
-        print('llama_batch_init 완료: nTokens=${batch.nTokens}');
-        
-        if (batch.token != nullptr) {
-          print('배치 초기화 성공 - 모든 토큰을 배치에 채우기 시작');
-          
-          // 프롬프트 토큰들을 배치에 채우기 (C++ 예제 기반)
+        // 프롬프트 배치: helper 사용 (llama_batch_get_one)
+        print('프롬프트 배치 구성 시작 (get_one)...');
+        final promptTokensPtr = malloc<Int32>(tokenCount);
+        for (int i = 0; i < tokenCount; i++) {
+          promptTokensPtr[i] = tokens[i];
+        }
+        final promptBatch = _llamaBatchGetOne(promptTokensPtr, tokenCount);
+        if (promptBatch.logits != nullptr) {
+          // 마지막 토큰만 logits 요청
           for (int i = 0; i < tokenCount; i++) {
-            print('토큰 $i 처리 중: ${tokens[i]} (위치: $i)');
-            
-            // C++: batch.token[i] = tokens[i];
-            batch.token[i] = tokens[i];
-            print('토큰 설정: ${batch.token[i]}');
-            
-            // C++: batch.pos[i] = i;
-            if (batch.pos != nullptr) {
-              batch.pos[i] = i;
-              print('위치 설정: ${batch.pos[i]}');
-            }
-            
-            // C++: batch.n_seq_id[i] = 1; batch.seq_id[i][0] = 0;
-            if (batch.nSeqId != nullptr) {
-              batch.nSeqId[i] = 1;
-            }
-            if (batch.seqId != nullptr) {
-              batch.seqId[i][0] = 0;
-              print('시퀀스 ID 설정: ${batch.seqId[i][0]}');
-            }
-            
-            // C++: batch.logits[i] = (i == n_tokens - 1); // 마지막 토큰에서만 logits 요청
-            if (batch.logits != nullptr) {
-              batch.logits[i] = (i == tokenCount - 1) ? 1 : 0; // 마지막 토큰에서만 true
-              print('로짓 설정: ${batch.logits[i]} (마지막 토큰: ${i == tokenCount - 1})');
-            }
+            promptBatch.logits[i] = (i == tokenCount - 1) ? 1 : 0;
           }
-          batch.nTokens = tokenCount;
-          
-          // C++: batch.n_tokens = n_tokens;
-          // Dart에서는 nTokens를 직접 설정할 수 없으므로 배치 크기 확인
-          // 하지만 llama_batch_init이 올바른 토큰 수를 반환해야 함
-          print('토큰 개수: $tokenCount개 사용 (배치 nTokens: ${batch.nTokens})');
-                   
-          // llama_decode 호출
-          print('llama_decode 호출 시작...');
-          final decodeResult = _llamaDecode(_context!, batch);
-          print('llama_decode 결과: $decodeResult');
-          
-          if (decodeResult != 0) {
-            print('llama_decode 실패 (결과: $decodeResult)');
-            if (decodeResult == -1) {
-              print('에러 코드 -1: invalid input batch');
-            } else if (decodeResult == 1) {
-              print('에러 코드 1: could not find a KV slot for the batch');
-            } else if (decodeResult == 2) {
-              print('에러 코드 2: aborted');
-            } else {
-              print('에러 코드 $decodeResult: fatal error');
-            }
-            allTokensProcessed = false;
-            lastDecodeResult = decodeResult;
-          } else {
-            print('llama_decode 성공!');
-            allTokensProcessed = true;
-          }
-          
-          // llama_batch_free로 배치 해제
-          _llamaBatchFree(batch);
-          print('배치 해제 완료');
-          
-        } else {
-          print('❌ 배치 초기화 실패 - nTokens=${batch.nTokens}, token=${batch.token}');
+        }
+        print('llama_decode 호출 시작 (프롬프트)...');
+        final decodeResult = _llamaDecode(_context!, promptBatch);
+        malloc.free(promptTokensPtr);
+        print('llama_decode 결과: $decodeResult');
+        if (decodeResult != 0) {
           allTokensProcessed = false;
+          lastDecodeResult = decodeResult;
+        } else {
+          allTokensProcessed = true;
         }
         
         print('모든 토큰 처리 시뮬레이션 완료');
-        
+
         if (allTokensProcessed) {
-          // 2. 성공적인 추론 완료 - 실제 텍스트 생성 시도
-          print('llama_decode 성공! 실제 텍스트 생성을 시도합니다.');
-          
-          // 3. 추론 성공 - 안전한 응답 생성
-          print('llama_decode 성공! 추론이 완료되었습니다.');
-          
-          // 토큰화된 입력을 기반으로 응답 생성
           final vocab = _llamaModelGetVocab(_model!);
-          final responseBuffer = StringBuffer();
-          
-          responseBuffer.write('🎉 AI 모델 추론 성공!\n');
-          responseBuffer.write('입력: "$prompt"\n');
-          responseBuffer.write('입력 토큰 수: $tokenCount\n');
-          
-          // 입력 토큰들을 텍스트로 변환해서 보여주기
-          if (tokenCount > 0) {
-            responseBuffer.write('입력 토큰들: ');
-            for (int i = 0; i < tokenCount && i < 5; i++) { // 최대 5개만 표시
-              final tokenText = _llamaVocabGetText(vocab, tokens[i]);
-              if (tokenText != nullptr) {
-                responseBuffer.write('"${tokenText.toDartString()}" ');
+          final generated = <int>[];
+          int steps = 0;
+
+          while (steps < maxTokens) {
+            final logitsPtr = _llamaGetLogitsIth(_context!, -1);
+            if (logitsPtr == nullptr) {
+              break;
+            }
+
+            final nVocab = _llamaVocabNTokens(vocab);
+            int bestId = 0;
+            double bestLogit = -double.maxFinite;
+            for (int i = 0; i < nVocab; i++) {
+              final v = logitsPtr.elementAt(i).value;
+              if (v > bestLogit) {
+                bestLogit = v.toDouble();
+                bestId = i;
               }
             }
-            responseBuffer.write('\n');
+
+            if (_llamaVocabIsEog(vocab, bestId) != 0) {
+              break;
+            }
+
+            generated.add(bestId);
+
+            final oneToken = malloc<Int32>(1);
+            oneToken[0] = bestId;
+            final stepBatch = _llamaBatchGetOne(oneToken, 1);
+            if (stepBatch.logits != nullptr) {
+              stepBatch.logits[0] = 1;
+            }
+            final r = _llamaDecode(_context!, stepBatch);
+            malloc.free(oneToken);
+            if (r != 0) {
+              break;
+            }
+            steps++;
           }
-          
-          // 안전한 AI 응답 생성 (메모리 오류 방지)
-          responseBuffer.write('\n🔄 AI 응답 생성 시작 (안전한 방식):\n');
-          
-          // 간단한 AI 응답 생성 (메모리 안전)
-          responseBuffer.write('AI 모델이 성공적으로 추론을 완료했습니다.\n');
-          responseBuffer.write('입력된 텍스트를 분석하여 응답을 생성했습니다.\n');
-          responseBuffer.write('현재는 메모리 안전을 위해 기본 응답을 제공합니다.\n');
-          
-          responseBuffer.write('\n✅ AI 응답 생성 완료!');
-          
-          response = responseBuffer.toString();
+
+          // detokenize로 UTF-8 문자열 생성
+          String detok = '';
+          if (generated.isNotEmpty) {
+            final genPtr = malloc<Int32>(generated.length);
+            for (int i = 0; i < generated.length; i++) {
+              genPtr[i] = generated[i];
+            }
+            final outBuf = malloc<Uint8>(8192);
+            final wrote = _llamaDetokenize(
+              vocab,
+              genPtr,
+              generated.length,
+              outBuf.cast<Utf8>(),
+              8192,
+              1, // remove_special
+              1, // unparse_special
+            );
+            if (wrote > 0) {
+              detok = outBuf.cast<Utf8>().toDartString();
+            }
+            malloc.free(outBuf);
+            malloc.free(genPtr);
+          }
+          response = detok.trim();
         } else {
           response = 'llama_decode 실패 (코드: $lastDecodeResult)';
         }
