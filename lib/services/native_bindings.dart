@@ -189,6 +189,9 @@ typedef LlamaVocabIsEogDart = int Function(Pointer vocab, int token);
 typedef LlamaDetokenizeC = Int32 Function(Pointer vocab, Pointer<Int32> tokens, Int32 nTokens, Pointer<Utf8> text, Int32 textLenMax, Uint8 removeSpecial, Uint8 unparseSpecial);
 typedef LlamaDetokenizeDart = int Function(Pointer vocab, Pointer<Int32> tokens, int nTokens, Pointer<Utf8> text, int textLenMax, int removeSpecial, int unparseSpecial);
 
+typedef LlamaNCtxC = Uint32 Function(Pointer ctx);
+typedef LlamaNCtxDart = int Function(Pointer ctx);
+
 /// llama.cpp 네이티브 라이브러리와의 FFI 바인딩
 class NativeBindings {
   static NativeBindings? _instance;
@@ -227,6 +230,7 @@ class NativeBindings {
   late LlamaVocabNTokensDart _llamaVocabNTokens;
   late LlamaVocabIsEogDart _llamaVocabIsEog;
   late LlamaDetokenizeDart _llamaDetokenize;
+  late LlamaNCtxDart _llamaNCtx;
   
   /// FFI 바인딩 초기화
   Future<bool> initialize() async {
@@ -376,6 +380,10 @@ class NativeBindings {
       _llamaDetokenize = _lib!
           .lookup<NativeFunction<LlamaDetokenizeC>>('llama_detokenize')
           .asFunction();
+
+      _llamaNCtx = _lib!
+          .lookup<NativeFunction<LlamaNCtxC>>('llama_n_ctx')
+          .asFunction();
       
       print('llama.cpp 함수 바인딩 완료');
     } catch (e) {
@@ -428,7 +436,7 @@ class NativeBindings {
   }
   
   /// 텍스트 생성 (greedy decoding)
-  Future<String> generateText(String prompt, {int maxTokens = 512, int minTokensBeforeEog = 32, bool autoContinue = true, int maxTotalTokens = 2048}) async {
+  Future<String> generateText(String prompt, {int maxTokens = 512, int minTokensBeforeEog = 32, bool autoContinue = true, int maxTotalTokens = 2048, bool respectShortAnswers = true}) async {
     if (!_isInitialized || _model == null || _context == null) {
       return 'FFI가 초기화되지 않았거나 모델이 로드되지 않았습니다';
     }
@@ -472,6 +480,12 @@ class NativeBindings {
         // 4. 안전한 토큰 처리 (메모리 오류 방지)
         bool allTokensProcessed = true;
         int lastDecodeResult = 0;
+        int minEog = minTokensBeforeEog;
+        bool autoCont = autoContinue;
+        if (respectShortAnswers) {
+          minEog = 0;
+          autoCont = false;
+        }
         
         // 프롬프트 배치: helper 사용 (llama_batch_get_one)
         print('프롬프트 배치 구성 시작 (ubatch get_one)...');
@@ -509,9 +523,15 @@ class NativeBindings {
           final vocab = _llamaModelGetVocab(_model!);
           final generated = <int>[];
           int steps = 0;
+          // 컨텍스트 크기에 맞춰 총 생성 한도 계산 (여유 margin 보유)
+          final ctxSize = _llamaNCtx(_context!);
+          final margin = 16;
+          final promptTokens = tokenCount;
+          final maxByCtx = ctxSize - promptTokens - margin;
+          final hardTotalCap = maxByCtx > 0 ? maxByCtx : maxTotalTokens;
 
           // 내부 함수: 한 스텝 생성
-          bool generateOneStep({required bool ignoreEog}) {
+          Future<bool> generateOneStep({required bool ignoreEog}) async {
             final logitsPtr = _llamaGetLogitsIth(_context!, -1);
             if (logitsPtr == nullptr) {
               return false;
@@ -533,7 +553,7 @@ class NativeBindings {
             }
 
             // 너무 이른 EOG 방지: 초기 N토큰 동안은 EOG를 무시하고 차선 토큰 사용
-            if (steps < minTokensBeforeEog && bestId != -1 && _llamaVocabIsEog(vocab, bestId) != 0) {
+            if (steps < minEog && bestId != -1 && _llamaVocabIsEog(vocab, bestId) != 0) {
               if (secondId != -1) {
                 bestId = secondId;
               }
@@ -562,18 +582,24 @@ class NativeBindings {
               return false;
             }
             steps++;
+            
+            // UI가 블록되지 않도록 주기적으로 yield
+            if (steps % 3 == 0) {
+              await Future.delayed(const Duration(milliseconds: 1));
+            }
+            
             return true;
           }
 
           // 1차 루프: maxTokens까지 생성
-          while (steps < maxTokens) {
-            if (!generateOneStep(ignoreEog: false)) break;
+          while (steps < maxTokens && steps < hardTotalCap) {
+            if (!(await generateOneStep(ignoreEog: false))) break;
           }
 
           // 자동 이어쓰기: EOG가 아니고 총 토큰 한도 내면 계속
-          if (autoContinue) {
-            while (steps < maxTotalTokens) {
-              if (!generateOneStep(ignoreEog: true)) break;
+          if (autoCont) {
+            while (steps < maxTotalTokens && steps < hardTotalCap) {
+              if (!(await generateOneStep(ignoreEog: true))) break;
             }
           }
 

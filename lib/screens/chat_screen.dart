@@ -52,10 +52,18 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  void _scrollToBottomImmediate() {
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    }
+  }
+
+
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty || _isLoading) return;
 
+    // 사용자 메시지를 즉시 추가하고 로딩 상태 시작
     setState(() {
       _messages.add(ChatMessage(
         text: message,
@@ -65,12 +73,18 @@ class _ChatScreenState extends State<ChatScreen> {
       _isLoading = true;
     });
 
+    // 입력창 즉시 초기화
     _messageController.clear();
-    _scrollToBottom();
+    _scrollToBottomImmediate();
+
+    // UI 업데이트가 완료되도록 약간의 지연
+    await Future.delayed(const Duration(milliseconds: 100));
 
     try {
       // OnDevice AI 모델과 통신
+      print('AI 응답 생성 시작: $message');
       final response = await AIService.instance.generateResponse(message);
+      print('AI 응답 생성 완료: $response');
       
       setState(() {
         _messages.add(ChatMessage(
@@ -278,35 +292,53 @@ class _ChatScreenState extends State<ChatScreen> {
           Expanded(
             child: TextField(
               controller: _messageController,
+              enabled: !_isLoading,
               decoration: InputDecoration(
-                hintText: '지키미에게 메시지를 보내세요...',
+                hintText: _isLoading 
+                    ? '지키미가 답변 중입니다...' 
+                    : '지키미에게 메시지를 보내세요...',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24),
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor: Colors.grey.shade100,
+                fillColor: _isLoading 
+                    ? Colors.grey.shade200 
+                    : Colors.grey.shade100,
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 20,
                   vertical: 12,
                 ),
               ),
-              onSubmitted: (_) => _sendMessage(),
+              onSubmitted: _isLoading ? null : (_) => _sendMessage(),
               textInputAction: TextInputAction.send,
             ),
           ),
           const SizedBox(width: 8),
           Container(
             decoration: BoxDecoration(
-              color: Colors.purple.shade500,
+              color: _isLoading 
+                  ? Colors.grey.shade400 
+                  : Colors.purple.shade500,
               shape: BoxShape.circle,
             ),
             child: IconButton(
-              onPressed: _sendMessage,
-              icon: const Icon(
-                Icons.send,
-                color: Colors.white,
-              ),
+              onPressed: _isLoading ? null : _sendMessage,
+              icon: _isLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Colors.white,
+                        ),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.send,
+                      color: Colors.white,
+                    ),
             ),
           ),
         ],
